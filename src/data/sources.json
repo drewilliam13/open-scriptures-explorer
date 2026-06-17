@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "id": "HBOMAS",
+      "name": "Hebrew Masoretic OT",
+      "website": "https://ebible.org/Scriptures/details.php?id=hbo",
+      "licenseUrl": "https://ebible.org/Scriptures/details.php?id=hbo"
+    },
+    {
+      "id": "eng_jps",
+      "name": "JPS TaNaKH 1917",
+      "website": "https://ebible.org/Scriptures/details.php?id=engjps",
+      "licenseUrl": "https://ebible.org/Scriptures/details.php?id=engjps"
+    }
+  ]
+}

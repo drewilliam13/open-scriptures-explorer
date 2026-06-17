@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Book {
+  id             String    @id
+  canonicalOrder Int       @unique @map("canonical_order")
+  nameEnglish    String    @map("name_english")
+  nameHebrew     String    @map("name_hebrew")
+  testament      String
+  section        String
+  chapters       Chapter[]
+  verses         Verse[]
+
+  @@map("books")
+}
+
+model Chapter {
+  id            String @id @default(cuid())
+  bookId        String @map("book_id")
+  chapterNumber Int    @map("chapter_number")
+  book          Book   @relation(fields: [bookId], references: [id])
+
+  @@unique([bookId, chapterNumber])
+  @@map("chapters")
+}
+
+model Verse {
+  id            String @id @default(cuid())
+  bookId        String @map("book_id")
+  chapterNumber Int    @map("chapter_number")
+  verseNumber   Int    @map("verse_number")
+  reference     String @unique
+  hebrewText    String @map("hebrew_text") @db.Text
+  englishText   String @map("english_text") @db.Text
+  translation   String
+  book          Book   @relation(fields: [bookId], references: [id])
+
+  @@unique([bookId, chapterNumber, verseNumber, translation])
+  @@map("verses")
+}
