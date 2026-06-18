@@ -16,8 +16,23 @@ export default function OseAppShell({
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [query, setQuery] = useState("");
+  const [searchStatus, setSearchStatus] = useState("idle");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchMeta, setSearchMeta] = useState(null);
+  const [searchError, setSearchError] = useState("");
+  const [searchHistory, setSearchHistory] = useState([]);
   const [selectedBookId, setSelectedBookId] = useState(initialBookId);
   const [selectedChapter, setSelectedChapter] = useState(initialChapter);
+
+  useEffect(() => {
+    window.history.replaceState(
+      { activeTab, selectedBookId, selectedChapter },
+      "",
+      window.location.href,
+    );
+    // Seed history state once so browser Back has a stateful search/reader target to restore.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) {
@@ -49,12 +64,40 @@ export default function OseAppShell({
     }
   }, [initialTab]);
 
+  useEffect(() => {
+    function handlePopState(event) {
+      if (event.state?.activeTab === "search" || event.state?.activeTab === "bible") {
+        setActiveTab(event.state.activeTab);
+        setSelectedBookId(event.state.selectedBookId ?? initialBookId);
+        setSelectedChapter(event.state.selectedChapter ?? initialChapter);
+        return;
+      }
+
+      const readerMatch = window.location.pathname.match(/^\/read\/([^/]+)\/(\d+)$/);
+      if (readerMatch) {
+        setActiveTab("bible");
+        setSelectedBookId(readerMatch[1]);
+        setSelectedChapter(Number(readerMatch[2]));
+        return;
+      }
+
+      setActiveTab("search");
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [initialBookId, initialChapter]);
+
   function selectReaderLocation(bookId, chapter) {
     setSelectedBookId(bookId);
     setSelectedChapter(chapter);
 
     if (syncReaderUrl || window.location.pathname.startsWith("/read/")) {
-      window.history.replaceState(null, "", `/read/${bookId}/${chapter}`);
+      window.history.replaceState(
+        { activeTab: "bible", selectedBookId: bookId, selectedChapter: chapter },
+        "",
+        `/read/${bookId}/${chapter}`,
+      );
     }
   }
 
@@ -63,16 +106,23 @@ export default function OseAppShell({
     setSelectedChapter(result.chapter);
     setActiveTab("bible");
     window.localStorage.setItem(STORAGE_KEY, "bible");
-    window.history.pushState(null, "", `/read/${result.bookId}/${result.chapter}`);
+    window.history.pushState(
+      { activeTab: "bible", selectedBookId: result.bookId, selectedChapter: result.chapter },
+      "",
+      `/read/${result.bookId}/${result.chapter}`,
+    );
   }
 
   function selectTab(tab) {
     setActiveTab(tab);
     window.localStorage.setItem(STORAGE_KEY, tab);
 
-    if (syncReaderUrl && tab === "search") {
-      window.history.replaceState(null, "", "/");
-    }
+    const nextPath = syncReaderUrl && tab === "search" ? "/" : window.location.href;
+    window.history.replaceState(
+      { activeTab: tab, selectedBookId, selectedChapter },
+      "",
+      nextPath,
+    );
   }
 
   const selectedBookMeta = useMemo(
@@ -92,7 +142,21 @@ export default function OseAppShell({
 
         <section className="min-h-0 flex-1 overflow-y-auto px-4 py-5 pb-28">
           {activeTab === "search" ? (
-            <SearchTab query={query} setQuery={setQuery} onOpenResult={openSearchResult} />
+            <SearchTab
+              error={searchError}
+              history={searchHistory}
+              onOpenResult={openSearchResult}
+              query={query}
+              results={searchResults}
+              searchMeta={searchMeta}
+              setError={setSearchError}
+              setHistory={setSearchHistory}
+              setQuery={setQuery}
+              setResults={setSearchResults}
+              setSearchMeta={setSearchMeta}
+              setStatus={setSearchStatus}
+              status={searchStatus}
+            />
           ) : (
             <BibleTab
               selectedBookId={selectedBookId}
@@ -124,13 +188,21 @@ export default function OseAppShell({
   );
 }
 
-function SearchTab({ query, setQuery, onOpenResult }) {
-  const [status, setStatus] = useState("idle");
-  const [results, setResults] = useState([]);
-  const [searchMeta, setSearchMeta] = useState(null);
-  const [error, setError] = useState("");
-  const [history, setHistory] = useState([]);
-
+function SearchTab({
+  error,
+  history,
+  onOpenResult,
+  query,
+  results,
+  searchMeta,
+  setError,
+  setHistory,
+  setQuery,
+  setResults,
+  setSearchMeta,
+  setStatus,
+  status,
+}) {
   useEffect(() => {
     refreshHistory();
   }, []);

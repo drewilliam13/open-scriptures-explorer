@@ -29,14 +29,18 @@ export function consumeRateLimit(key, nowMs = Date.now()) {
       allowed: true,
       remaining: maxRequests - 1,
       resetAt: Math.ceil(resetAt / 1000),
+      resetIn: windowSeconds,
     };
   }
+
+  const resetIn = Math.max(0, Math.ceil((existing.resetAt - nowMs) / 1000));
 
   if (existing.count >= maxRequests) {
     return {
       allowed: false,
       remaining: 0,
       resetAt: Math.ceil(existing.resetAt / 1000),
+      resetIn,
     };
   }
 
@@ -45,6 +49,7 @@ export function consumeRateLimit(key, nowMs = Date.now()) {
     allowed: true,
     remaining: maxRequests - existing.count,
     resetAt: Math.ceil(existing.resetAt / 1000),
+    resetIn,
   };
 }
 

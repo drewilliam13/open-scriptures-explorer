@@ -152,7 +152,7 @@ Recommended Vercel settings:
 - Environment variables for reader/local search: none required
 - Environment variables for AI discovery: `OPENAI_API_KEY`, `DEFAULT_AI_PROVIDER=openai`, optionally `OPENAI_MODEL`
 - Environment variables for launch metadata: `NEXT_PUBLIC_SITE_URL=https://your-domain.example`
-- Environment variables for throttling: `SEARCH_RATE_LIMIT_MAX`, `SEARCH_RATE_LIMIT_WINDOW_SECONDS`
+- Environment variables for throttling: `SEARCH_RATE_LIMIT_MAX`, `SEARCH_RATE_LIMIT_WINDOW_SECONDS`, `TRUST_PROXY_HEADERS`
 
 The build script regenerates `public/scriptures/` before `next build`, so the
 deployed scripture collection stays in sync with `src/data/tanakh.json`.
@@ -207,6 +207,7 @@ DEFAULT_AI_PROVIDER=openai
 NEXT_PUBLIC_SITE_URL=
 SEARCH_RATE_LIMIT_MAX=30
 SEARCH_RATE_LIMIT_WINDOW_SECONDS=60
+TRUST_PROXY_HEADERS=false
 APP_ENV=development
 ```
 

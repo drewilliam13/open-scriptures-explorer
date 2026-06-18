@@ -31,6 +31,19 @@ describe("scripture search", () => {
     ]);
   });
 
+  it("expands chapter-only references to the whole chapter range", () => {
+    expect(getDirectReferenceResults("Isaiah 53")).toEqual([
+      expect.objectContaining({
+        reference: "Isaiah 53:1-12",
+        bookId: "isa",
+        chapter: 53,
+        verseStart: 1,
+        verseEnd: 12,
+        source: "direct",
+      }),
+    ]);
+  });
+
   it("rejects invalid verse references", () => {
     expect(validateReferenceResult({ reference: "Genesis 1:999", confidence: 1 })).toBeNull();
     expect(validateReferenceResult({ reference: "Romans 8:28", confidence: 1 })).toBeNull();
@@ -62,6 +75,25 @@ describe("scripture search", () => {
     });
     expect(results[0]).not.toHaveProperty("englishText");
     expect(results[0]).not.toHaveProperty("hebrewText");
+  });
+
+  it("seeds local candidates from synonym tokens", () => {
+    const results = searchLocalText("torah");
+
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((result) => result.source === "local")).toBe(true);
+  });
+
+  it("finds local Hebrew text without requiring vowel marks", () => {
+    const results = searchLocalText("בראשית ברא");
+
+    expect(results[0]).toMatchObject({
+      reference: "Genesis 1:1",
+      bookId: "gen",
+      chapter: 1,
+      verseStart: 1,
+      source: "local",
+    });
   });
 
   it("does not use online discovery when local search has a strong verified match", () => {

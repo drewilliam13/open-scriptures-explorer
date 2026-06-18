@@ -11,9 +11,21 @@ describe("search rate limit", () => {
     vi.stubEnv("SEARCH_RATE_LIMIT_MAX", "2");
     vi.stubEnv("SEARCH_RATE_LIMIT_WINDOW_SECONDS", "60");
 
-    expect(consumeRateLimit("client-a", 1000)).toMatchObject({ allowed: true, remaining: 1 });
-    expect(consumeRateLimit("client-a", 1000)).toMatchObject({ allowed: true, remaining: 0 });
-    expect(consumeRateLimit("client-a", 1000)).toMatchObject({ allowed: false, remaining: 0 });
+    expect(consumeRateLimit("client-a", 1000)).toMatchObject({
+      allowed: true,
+      remaining: 1,
+      resetIn: 60,
+    });
+    expect(consumeRateLimit("client-a", 1000)).toMatchObject({
+      allowed: true,
+      remaining: 0,
+      resetIn: 60,
+    });
+    expect(consumeRateLimit("client-a", 1000)).toMatchObject({
+      allowed: false,
+      remaining: 0,
+      resetIn: 60,
+    });
   });
 
   it("opens a new bucket after the window resets", () => {

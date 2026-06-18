@@ -45,7 +45,8 @@ const entries = tanakh.books.flatMap((book) =>
       verse: verse.verseNumber,
       reference: verse.reference,
       english: normalizeSearchText(verse.englishText),
-      tokens: tokenize(verse.englishText),
+      hebrew: normalizeSearchText(verse.hebrewText),
+      tokens: tokenize(`${verse.englishText} ${verse.hebrewText}`),
       sortOrder: verse.sortOrder,
     })),
   ),
@@ -85,8 +86,10 @@ function tokenize(value) {
 
 function normalizeSearchText(value) {
   return value
+    .normalize("NFD")
     .toLowerCase()
     .replace(/[''`]/g, "")
+    .replace(/[\u0591-\u05bd\u05bf\u05c1-\u05c2\u05c4-\u05c5\u05c7]/g, "")
     .replace(/[^a-z0-9\u0590-\u05ff]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

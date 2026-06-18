@@ -58,6 +58,10 @@ export async function POST(request) {
 }
 
 function getClientKey(request) {
+  if (process.env.TRUST_PROXY_HEADERS !== "true") {
+    return "global";
+  }
+
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return forwardedFor || request.headers.get("x-real-ip") || "local";
 }
@@ -68,6 +72,7 @@ function getRateLimitHeaders(rateLimit) {
   return {
     "RateLimit-Limit": String(config.maxRequests),
     "RateLimit-Remaining": String(rateLimit.remaining),
-    "RateLimit-Reset": String(rateLimit.resetAt),
+    "RateLimit-Reset": String(rateLimit.resetIn),
+    "X-RateLimit-Reset": String(rateLimit.resetAt),
   };
 }

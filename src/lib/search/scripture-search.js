@@ -128,9 +128,11 @@ export function searchLocalText(query) {
 
   const index = getSearchIndex();
   const candidates = new Set();
-  for (const token of queryTokens) {
-    for (const entry of index.byToken.get(token) ?? []) {
-      candidates.add(entry);
+  for (const tokens of queryTokenGroups) {
+    for (const token of tokens) {
+      for (const entry of index.byToken.get(token) ?? []) {
+        candidates.add(entry);
+      }
     }
   }
 
@@ -185,8 +187,9 @@ export function validateReferenceResult(candidate) {
 
   const firstVerse = chapterEntry.verses[0]?.verseNumber ?? null;
   const lastVerse = chapterEntry.verses.at(-1)?.verseNumber ?? null;
-  const normalizedVerseStart = verseStart ?? firstVerse;
-  const normalizedVerseEnd = verseEnd ?? normalizedVerseStart;
+  const isChapterOnly = verseStart == null && verseEnd == null;
+  const normalizedVerseStart = isChapterOnly ? firstVerse : verseStart;
+  const normalizedVerseEnd = isChapterOnly ? lastVerse : verseEnd ?? normalizedVerseStart;
 
   if (
     !Number.isInteger(normalizedVerseStart) ||
@@ -305,7 +308,7 @@ function getReferenceCandidates(query) {
 }
 
 function scoreVerse(entry, normalizedQuery, queryTokenGroups) {
-  if (entry.english.includes(normalizedQuery)) {
+  if (entry.english.includes(normalizedQuery) || entry.hebrew.includes(normalizedQuery)) {
     return 0.94;
   }
 
@@ -335,8 +338,10 @@ function tokenize(value) {
 
 function normalizeSearchText(value) {
   return value
+    .normalize("NFD")
     .toLowerCase()
     .replace(/[''`]/g, "")
+    .replace(/[\u0591-\u05bd\u05bf\u05c1-\u05c2\u05c4-\u05c5\u05c7]/g, "")
     .replace(/[^a-z0-9\u0590-\u05ff]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

@@ -98,7 +98,32 @@ describe("/api/search", () => {
 
     expect(firstResponse.status).toBe(200);
     expect(firstResponse.headers.get("RateLimit-Remaining")).toBe("0");
+    expect(firstResponse.headers.get("RateLimit-Reset")).toBe("60");
+    expect(firstResponse.headers.get("X-RateLimit-Reset")).toMatch(/^\d+$/);
     expect(secondResponse.status).toBe(429);
     expect(payload.error).toBe("Too many search requests. Please try again shortly.");
+  });
+
+  it("does not let forwarded headers bypass the default global search bucket", async () => {
+    vi.stubEnv("SEARCH_RATE_LIMIT_MAX", "1");
+    vi.stubEnv("SEARCH_RATE_LIMIT_WINDOW_SECONDS", "60");
+
+    const firstResponse = await POST(
+      new Request("http://localhost/api/search", {
+        method: "POST",
+        headers: { "x-forwarded-for": "203.0.113.10" },
+        body: JSON.stringify({ query: "Isaiah 53:1" }),
+      }),
+    );
+    const secondResponse = await POST(
+      new Request("http://localhost/api/search", {
+        method: "POST",
+        headers: { "x-forwarded-for": "203.0.113.11" },
+        body: JSON.stringify({ query: "Exodus 19:4" }),
+      }),
+    );
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(429);
   });
 });
