@@ -12,6 +12,15 @@ test("opens the mobile shell and switches tabs", async ({ page }) => {
   await page.getByRole("button", { name: "Search" }).click();
   await expect(page.getByRole("heading", { name: "Search Scripture" })).toBeVisible();
 
+  await page.getByLabel("Natural language search").fill("eagles wings");
+  await page.locator("form").getByRole("button", { name: "Search" }).click();
+  await expect(page.getByRole("heading", { name: "Results" })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("Exodus 19:4", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Open" }).first().click();
+  await expect(page.getByRole("heading", { name: "Bible Reader" })).toBeVisible();
+  await expect(page.getByLabel("Tanakh book")).toHaveValue("exo");
+  await expect(page.getByLabel("Chapter")).toHaveValue("19");
+
   await page.getByRole("button", { name: "Bible" }).click();
 
   await page.getByLabel("Tanakh book").selectOption("exo");

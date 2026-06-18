@@ -1,4 +1,4 @@
-const CACHE_VERSION = "ose-v1";
+const CACHE_VERSION = "ose-v3";
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const SCRIPTURE_CACHE = `${CACHE_VERSION}-scriptures`;
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/scriptures/manifest.json"];
@@ -8,7 +8,7 @@ self.addEventListener("install", (event) => {
     caches
       .open(APP_CACHE)
       .then(async (cache) => {
-        await cache.addAll(APP_SHELL);
+        await cacheAllSettled(cache, APP_SHELL);
         await warmAppShellAssets(cache);
       })
       .then(() => self.skipWaiting()),
@@ -31,22 +31,32 @@ self.addEventListener("activate", (event) => {
 });
 
 async function warmAppShellAssets(cache) {
-  const response = await fetch("/");
-  if (!response.ok) {
-    return;
+  try {
+    const response = await fetch("/");
+    if (!response.ok) {
+      return;
+    }
+
+    await cache.put("/", response.clone());
+    const html = await response.text();
+    const assetPaths = [...html.matchAll(/(?:src|href)="([^"]*\/_next\/static\/[^"]+)"/g)].map(
+      (match) => match[1],
+    );
+
+    await cacheAllSettled(cache, assetPaths);
+  } catch {
+    // A partial app-shell cache is still useful; failed warmups should not block SW install.
   }
+}
 
-  await cache.put("/", response.clone());
-  const html = await response.text();
-  const assetPaths = [...html.matchAll(/(?:src|href)="([^"]*\/_next\/static\/[^"]+)"/g)].map(
-    (match) => match[1],
-  );
-
+async function cacheAllSettled(cache, paths) {
   await Promise.all(
-    assetPaths.map(async (assetPath) => {
+    paths.map(async (path) => {
       try {
-        await cache.add(assetPath);
-      } catch {}
+        await cache.add(path);
+      } catch {
+        // Ignore individual cache misses so one transient asset failure does not break install.
+      }
     }),
   );
 }
