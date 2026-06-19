@@ -2,7 +2,7 @@
 
 Open Scripture Explorer is a Hebrew-first Scripture study PWA.
 
-The current app includes the offline reader plus an online-capable search layer:
+The current app includes the offline reader plus a server-side search layer:
 
 - Mobile-first Bible reader and Search tab
 - Hebrew-first Tanakh reader
@@ -13,7 +13,7 @@ The current app includes the offline reader plus an online-capable search layer:
 - Natural language scripture search
 - Direct reference lookup
 - Local fuzzy search over verified scripture text
-- Optional OpenAI/web-backed reference discovery
+- Optional OpenAI reference discovery
 
 ## Current Checkpoint
 
@@ -31,8 +31,8 @@ This repository is scaffolded with:
 
 AI-assisted discovery is optional. Without `OPENAI_API_KEY`, direct references and
 local fuzzy search still work. With `OPENAI_API_KEY`, the server can use OpenAI to
-discover candidate references, then validates those references against local OSHB
-+ JPS data before returning them.
+discover candidate references without hosted search tools, then validates those
+references against local OSHB + JPS data before returning them.
 
 ## Scripture Data
 
@@ -87,7 +87,7 @@ Search uses a layered server-side flow:
 1. Parse direct references.
 2. Search verified local OSHB / JPS text.
 3. Use fuzzy token matching for remembered wording.
-4. Use OpenAI web-backed reference discovery when `OPENAI_API_KEY` is configured.
+4. Use optional OpenAI reference discovery when `OPENAI_API_KEY` is configured.
 5. Validate every returned reference against the local scripture collection.
 
 The API returns reference metadata only. The client displays quotations by loading
@@ -136,7 +136,7 @@ npm run dev
 Open http://localhost:3000.
 
 Reader and local search do not require local environment variables. Add
-`OPENAI_API_KEY` to `.env.local` only when testing AI/web-backed discovery.
+`OPENAI_API_KEY` to `.env.local` only when testing AI reference discovery.
 
 ## Hosting Part 1
 

@@ -52,11 +52,12 @@ export async function discoverOpenAiReferences(query) {
               {
                 type: "input_text",
                 text: [
-                  "You find Hebrew Bible / Tanakh references for scripture search.",
-                  "Return references only. Do not quote scripture text.",
+                  "You identify Hebrew Bible / Tanakh references from user queries using your trained knowledge of Bible wording, references, and common translations.",
+                  "Return references only. Do not quote scripture text. Do not provide commentary or explanations.",
                   "Prefer canonical book names and OSHB/Masoretic chapter numbering.",
-                  "Treat the user's words as possibly coming from any common English translation, including KJV, NKJV, ESV, NIV, NASB, or paraphrased memory.",
-                  "Use web search to identify references for remembered wording that differs from the local JPS wording.",
+                  "Treat the user's words as possibly coming from any common English translation, including KJV, NKJV, ESV, NIV, NASB, JPS, or paraphrased memory.",
+                  "Set confidence based on your trained recognition of how strongly the user query identifies this reference, including remembered wording from common translations, paraphrases, and exact references.",
+                  "Do not lower confidence merely because the matching translation text is not available locally.",
                   "When the query looks like a partial quotation, prioritize exact or near-exact cross-translation quotation matches over topical similarity.",
                   "For example, wording like 'to the law and to the testimony if they speak not according to this word' should resolve to Isaiah 8:20.",
                   "Return only high-confidence candidate references; omit topical guesses.",
@@ -74,7 +75,6 @@ export async function discoverOpenAiReferences(query) {
             ],
           },
         ],
-        tools: [{ type: "web_search", search_context_size: "low" }],
         text: {
           format: {
             type: "json_schema",

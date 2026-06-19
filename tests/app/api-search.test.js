@@ -11,6 +11,7 @@ describe("/api/search", () => {
   afterEach(() => {
     resetRateLimitsForTests();
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("returns direct reference results", async () => {
@@ -63,6 +64,57 @@ describe("/api/search", () => {
     expect(payload.results.every((result) => !("englishText" in result))).toBe(true);
     expect(payload.results.every((result) => !("hebrewText" in result))).toBe(true);
     expect(payload.results.every((result) => result.bookId !== "rom")).toBe(true);
+  });
+
+  it("uses AI-proposed references only after local validation", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          output_text: JSON.stringify({
+            results: [
+              {
+                reference: "Isaiah 53:5",
+                confidence: 0.96,
+                reason: "Model explanation that must not be exposed",
+              },
+              {
+                reference: "John 3:16",
+                confidence: 0.99,
+                reason: "Outside the local Tanakh collection",
+              },
+            ],
+          }),
+        }),
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/search", {
+        method: "POST",
+        body: JSON.stringify({ query: "by his wounds we are healed" }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.sources.ai).toBe(true);
+    expect(payload.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reference: "Isaiah 53:5",
+          source: "ai",
+          reason: "AI-proposed reference validated against local scripture data",
+        }),
+      ]),
+    );
+    expect(payload.results.every((result) => !("englishText" in result))).toBe(true);
+    expect(payload.results.every((result) => !("hebrewText" in result))).toBe(true);
+    expect(payload.results.every((result) => result.reason !== "Model explanation that must not be exposed")).toBe(
+      true,
+    );
+    expect(payload.results.every((result) => result.reference !== "John 3:16")).toBe(true);
   });
 
   it("rejects invalid requests", async () => {
