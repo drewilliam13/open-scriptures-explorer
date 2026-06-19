@@ -1,6 +1,8 @@
 import { searchScripture } from "@/lib/search/scripture-search";
 import { consumeRateLimit, getSearchRateLimitConfig } from "@/lib/rate-limit";
 
+const MAX_SEARCH_QUERY_LENGTH = 500;
+
 export async function POST(request) {
   const startedAt = Date.now();
   const rateLimit = consumeRateLimit(getClientKey(request));
@@ -24,10 +26,23 @@ export async function POST(request) {
     );
   }
 
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return Response.json(
+      { error: "Search request must be a JSON object." },
+      { status: 400, headers: rateLimitHeaders },
+    );
+  }
+
   const query = typeof payload.query === "string" ? payload.query.trim() : "";
   if (query.length < 2) {
     return Response.json(
       { error: "Search query must be at least 2 characters." },
+      { status: 400, headers: rateLimitHeaders },
+    );
+  }
+  if (query.length > MAX_SEARCH_QUERY_LENGTH) {
+    return Response.json(
+      { error: `Search query must be ${MAX_SEARCH_QUERY_LENGTH} characters or fewer.` },
       { status: 400, headers: rateLimitHeaders },
     );
   }

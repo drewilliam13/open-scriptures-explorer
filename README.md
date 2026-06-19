@@ -150,7 +150,7 @@ Recommended Vercel settings:
 - Production branch: `main`
 - Build command: `npm run build`
 - Environment variables for reader/local search: none required
-- Environment variables for AI discovery: `OPENAI_API_KEY`, `DEFAULT_AI_PROVIDER=openai`, optionally `OPENAI_MODEL`
+- Environment variables for AI discovery: `OPENAI_API_KEY`, `DEFAULT_AI_PROVIDER=openai`, optionally `OPENAI_MODEL` and `OPENAI_TIMEOUT_MS`
 - Environment variables for launch metadata: `NEXT_PUBLIC_SITE_URL=https://your-domain.example`
 - Environment variables for throttling: `SEARCH_RATE_LIMIT_MAX`, `SEARCH_RATE_LIMIT_WINDOW_SECONDS`, `TRUST_PROXY_HEADERS`
 
@@ -203,6 +203,7 @@ uses:
 DATABASE_URL=
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.5
+OPENAI_TIMEOUT_MS=8000
 DEFAULT_AI_PROVIDER=openai
 NEXT_PUBLIC_SITE_URL=
 SEARCH_RATE_LIMIT_MAX=30

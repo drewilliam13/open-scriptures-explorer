@@ -1,4 +1,5 @@
 const MAX_AI_RESULTS = 8;
+const DEFAULT_AI_TIMEOUT_MS = 8000;
 
 const AI_REFERENCE_SCHEMA = {
   type: "object",
@@ -31,65 +32,78 @@ export async function discoverOpenAiReferences(query) {
     return [];
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.OPENAI_MODEL || "gpt-5.5",
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text: [
-                "You find Hebrew Bible / Tanakh references for scripture search.",
-                "Return references only. Do not quote scripture text.",
-                "Prefer canonical book names and OSHB/Masoretic chapter numbering.",
-                "Treat the user's words as possibly coming from any common English translation, including KJV, NKJV, ESV, NIV, NASB, or paraphrased memory.",
-                "Use web search to identify references for remembered wording that differs from the local JPS wording.",
-                "When the query looks like a partial quotation, prioritize exact or near-exact cross-translation quotation matches over topical similarity.",
-                "For example, wording like 'to the law and to the testimony if they speak not according to this word' should resolve to Isaiah 8:20.",
-                "Return only high-confidence candidate references; omit topical guesses.",
-              ].join(" "),
-            },
-          ],
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `Find up to ${MAX_AI_RESULTS} likely Tanakh references for this query: ${query}`,
-            },
-          ],
-        },
-      ],
-      tools: [{ type: "web_search", search_context_size: "low" }],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "ScriptureReferenceResults",
-          strict: true,
-          schema: AI_REFERENCE_SCHEMA,
-        },
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), getOpenAiTimeoutMs());
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
       },
-      store: false,
-    }),
-  });
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || "gpt-5.5",
+        input: [
+          {
+            role: "system",
+            content: [
+              {
+                type: "input_text",
+                text: [
+                  "You find Hebrew Bible / Tanakh references for scripture search.",
+                  "Return references only. Do not quote scripture text.",
+                  "Prefer canonical book names and OSHB/Masoretic chapter numbering.",
+                  "Treat the user's words as possibly coming from any common English translation, including KJV, NKJV, ESV, NIV, NASB, or paraphrased memory.",
+                  "Use web search to identify references for remembered wording that differs from the local JPS wording.",
+                  "When the query looks like a partial quotation, prioritize exact or near-exact cross-translation quotation matches over topical similarity.",
+                  "For example, wording like 'to the law and to the testimony if they speak not according to this word' should resolve to Isaiah 8:20.",
+                  "Return only high-confidence candidate references; omit topical guesses.",
+                ].join(" "),
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: `Find up to ${MAX_AI_RESULTS} likely Tanakh references for this query: ${query}`,
+              },
+            ],
+          },
+        ],
+        tools: [{ type: "web_search", search_context_size: "low" }],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "ScriptureReferenceResults",
+            strict: true,
+            schema: AI_REFERENCE_SCHEMA,
+          },
+        },
+        store: false,
+      }),
+    });
 
-  if (!response.ok) {
-    return [];
+    if (!response.ok) {
+      return [];
+    }
+
+    const payload = await response.json();
+    const text = extractResponseText(payload);
+    const parsed = JSON.parse(text);
+
+    return parsed.results ?? [];
+  } finally {
+    clearTimeout(timeout);
   }
+}
 
-  const payload = await response.json();
-  const text = extractResponseText(payload);
-  const parsed = JSON.parse(text);
-
-  return parsed.results ?? [];
+function getOpenAiTimeoutMs() {
+  const parsed = Number.parseInt(process.env.OPENAI_TIMEOUT_MS ?? "", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_AI_TIMEOUT_MS;
 }
 
 function extractResponseText(payload) {

@@ -96,6 +96,18 @@ describe("scripture search", () => {
     });
   });
 
+  it("finds Hebrew phrases when users omit Hebrew punctuation", () => {
+    const results = searchLocalText("על פני תהום");
+
+    expect(results[0]).toMatchObject({
+      reference: "Genesis 1:2",
+      bookId: "gen",
+      chapter: 1,
+      verseStart: 2,
+      source: "local",
+    });
+  });
+
   it("does not use online discovery when local search has a strong verified match", () => {
     const results = searchLocalText("eagles wings");
 

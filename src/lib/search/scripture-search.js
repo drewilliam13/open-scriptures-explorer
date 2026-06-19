@@ -342,6 +342,7 @@ function normalizeSearchText(value) {
     .toLowerCase()
     .replace(/[''`]/g, "")
     .replace(/[\u0591-\u05bd\u05bf\u05c1-\u05c2\u05c4-\u05c5\u05c7]/g, "")
+    .replace(/[\u05be\u05c0\u05c3\u05f3\u05f4]/g, " ")
     .replace(/[^a-z0-9\u0590-\u05ff]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

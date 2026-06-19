@@ -76,6 +76,32 @@ describe("/api/search", () => {
     expect(response.status).toBe(400);
   });
 
+  it("rejects non-object JSON payloads", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/search", {
+        method: "POST",
+        body: "null",
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Search request must be a JSON object.");
+  });
+
+  it("rejects oversized search queries before processing", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/search", {
+        method: "POST",
+        body: JSON.stringify({ query: "a".repeat(501) }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("Search query must be 500 characters or fewer.");
+  });
+
   it("rate limits repeated search requests per client", async () => {
     vi.stubEnv("SEARCH_RATE_LIMIT_MAX", "1");
     vi.stubEnv("SEARCH_RATE_LIMIT_WINDOW_SECONDS", "60");

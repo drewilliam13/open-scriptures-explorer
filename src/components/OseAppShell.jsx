@@ -117,7 +117,10 @@ export default function OseAppShell({
     setActiveTab(tab);
     window.localStorage.setItem(STORAGE_KEY, tab);
 
-    const nextPath = syncReaderUrl && tab === "search" ? "/" : window.location.href;
+    const nextPath =
+      tab === "search" && (syncReaderUrl || window.location.pathname.startsWith("/read/"))
+        ? "/"
+        : window.location.href;
     window.history.replaceState(
       { activeTab: tab, selectedBookId, selectedChapter },
       "",
