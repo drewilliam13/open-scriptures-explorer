@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { consumeRateLimit, resetRateLimitsForTests } from "@/lib/rate-limit";
+import {
+  consumeRateLimit,
+  getRateLimitBucketCountForTests,
+  resetRateLimitsForTests,
+} from "@/lib/rate-limit";
 
 describe("search rate limit", () => {
   afterEach(() => {
@@ -35,5 +39,16 @@ describe("search rate limit", () => {
     expect(consumeRateLimit("client-a", 1000).allowed).toBe(true);
     expect(consumeRateLimit("client-a", 1000).allowed).toBe(false);
     expect(consumeRateLimit("client-a", 2001).allowed).toBe(true);
+  });
+
+  it("prunes expired buckets before inserting new client keys", () => {
+    vi.stubEnv("SEARCH_RATE_LIMIT_WINDOW_SECONDS", "1");
+
+    expect(consumeRateLimit("client-a", 1000).allowed).toBe(true);
+    expect(consumeRateLimit("client-b", 1000).allowed).toBe(true);
+    expect(getRateLimitBucketCountForTests()).toBe(2);
+
+    expect(consumeRateLimit("client-c", 2001).allowed).toBe(true);
+    expect(getRateLimitBucketCountForTests()).toBe(1);
   });
 });

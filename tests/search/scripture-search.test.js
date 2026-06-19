@@ -31,6 +31,18 @@ describe("scripture search", () => {
     ]);
   });
 
+  it("does not treat ambiguous short aliases inside prose as direct references", async () => {
+    const payload = await searchScripture("why is 40 years important", { disableAi: true });
+
+    expect(payload.sources.direct).toBe(false);
+    expect(payload.results).not.toEqual([
+      expect.objectContaining({
+        reference: "Isaiah 40:1-31",
+        source: "direct",
+      }),
+    ]);
+  });
+
   it("expands chapter-only references to the whole chapter range", () => {
     expect(getDirectReferenceResults("Isaiah 53")).toEqual([
       expect.objectContaining({
@@ -47,6 +59,20 @@ describe("scripture search", () => {
   it("rejects invalid verse references", () => {
     expect(validateReferenceResult({ reference: "Genesis 1:999", confidence: 1 })).toBeNull();
     expect(validateReferenceResult({ reference: "Romans 8:28", confidence: 1 })).toBeNull();
+  });
+
+  it("does not preserve AI-provided explanations in validated results", () => {
+    expect(
+      validateReferenceResult({
+        reference: "Exodus 19:4",
+        confidence: 0.8,
+        source: "ai",
+        reason: "The verse says...",
+      }),
+    ).toMatchObject({
+      source: "ai",
+      reason: "AI-proposed reference validated against local scripture data",
+    });
   });
 
   it("deduplicates repeated references and keeps the highest confidence", () => {

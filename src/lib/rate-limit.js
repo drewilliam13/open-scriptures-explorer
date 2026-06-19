@@ -17,6 +17,8 @@ export function consumeRateLimit(key, nowMs = Date.now()) {
   const { maxRequests, windowSeconds } = getSearchRateLimitConfig();
   const normalizedKey = key || "anonymous";
   const windowMs = windowSeconds * 1000;
+  pruneExpiredBuckets(nowMs);
+
   const existing = buckets.get(normalizedKey);
 
   // This is a per-runtime guard for Vercel/serverless. It protects accidental
@@ -55,6 +57,18 @@ export function consumeRateLimit(key, nowMs = Date.now()) {
 
 export function resetRateLimitsForTests() {
   buckets.clear();
+}
+
+export function getRateLimitBucketCountForTests() {
+  return buckets.size;
+}
+
+function pruneExpiredBuckets(nowMs) {
+  for (const [key, bucket] of buckets) {
+    if (bucket.resetAt <= nowMs) {
+      buckets.delete(key);
+    }
+  }
 }
 
 function readPositiveInt(name, fallback) {

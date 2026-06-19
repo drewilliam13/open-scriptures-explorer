@@ -213,7 +213,7 @@ export function validateReferenceResult(candidate) {
     verseEnd: normalizedVerseEnd,
     confidence: clampConfidence(candidate.confidence),
     source: candidate.source ?? "local",
-    reason: candidate.reason ?? "",
+    reason: getResultReason(candidate),
   };
 }
 
@@ -256,7 +256,7 @@ async function discoverAiReferences(query, options = {}) {
           reference: result.reference,
           confidence: Math.min(result.confidence, 0.86),
           source: "ai",
-          reason: result.reason,
+          reason: "AI-proposed reference validated against local scripture data",
         }),
       )
       .filter(Boolean);
@@ -296,6 +296,10 @@ function getReferenceCandidates(query) {
   for (const book of TANAKH_BOOKS) {
     const names = [book.nameEnglish, ...book.aliases].sort((a, b) => b.length - a.length);
     for (const name of names) {
+      if (isAmbiguousEmbeddedAlias(name)) {
+        continue;
+      }
+
       const escapedName = escapeRegExp(name);
       const pattern = new RegExp(`\\b${escapedName}\\.?\\s+\\d{1,3}(?::\\d{1,3}(?:-\\d{1,3})?)?\\b`, "gi");
       for (const match of normalized.matchAll(pattern)) {
@@ -305,6 +309,18 @@ function getReferenceCandidates(query) {
   }
 
   return [...candidates];
+}
+
+function isAmbiguousEmbeddedAlias(name) {
+  return name.replace(/[^a-z0-9]/gi, "").length < 3;
+}
+
+function getResultReason(candidate) {
+  if (candidate.source === "ai") {
+    return "AI-proposed reference validated against local scripture data";
+  }
+
+  return candidate.reason ?? "";
 }
 
 function scoreVerse(entry, normalizedQuery, queryTokenGroups) {
