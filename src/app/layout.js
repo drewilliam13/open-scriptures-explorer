@@ -13,9 +13,10 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "Open Scripture Explorer",
-  description: "Offline Hebrew-first Tanakh reader with aligned JPS 1917 text.",
+  description: "Installable Hebrew-first Tanakh reader with offline scripture access and verified search.",
   manifest: "/manifest.webmanifest",
   applicationName: "Open Scripture Explorer",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://open-scripture-explorer.vercel.app"),
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },
@@ -28,6 +29,11 @@ export const metadata = {
     capable: true,
     title: "OSE",
     statusBarStyle: "default",
+  },
+  openGraph: {
+    title: "Open Scripture Explorer",
+    description: "Installable Hebrew-first Tanakh reader with offline scripture access and verified search.",
+    type: "website",
   },
 };
 

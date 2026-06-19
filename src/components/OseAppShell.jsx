@@ -3,6 +3,7 @@
 import { BookOpenText, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { TANAKH_BOOKS } from "@/lib/reference/books";
+import { clearSearchHistory, listSearchHistory, saveSearchHistory } from "@/lib/search/history";
 import { getStaticChapterPayload } from "@/lib/scripture/static-client";
 
 const STORAGE_KEY = "ose.activeTab";
@@ -15,13 +16,40 @@ export default function OseAppShell({
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [query, setQuery] = useState("");
+  const [searchStatus, setSearchStatus] = useState("idle");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchMeta, setSearchMeta] = useState(null);
+  const [searchError, setSearchError] = useState("");
+  const [searchHistory, setSearchHistory] = useState([]);
   const [selectedBookId, setSelectedBookId] = useState(initialBookId);
   const [selectedChapter, setSelectedChapter] = useState(initialChapter);
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    window.history.replaceState(
+      { activeTab, selectedBookId, selectedChapter },
+      "",
+      window.location.href,
+    );
+    // Seed history state once so browser Back has a stateful search/reader target to restore.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) {
+      return;
     }
+
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
+      });
+      window.caches?.keys().then((keys) => {
+        keys.filter((key) => key.startsWith("ose-")).forEach((key) => window.caches.delete(key));
+      });
+      return;
+    }
+
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -36,22 +64,68 @@ export default function OseAppShell({
     }
   }, [initialTab]);
 
+  useEffect(() => {
+    function handlePopState(event) {
+      if (event.state?.activeTab === "search" || event.state?.activeTab === "bible") {
+        setActiveTab(event.state.activeTab);
+        setSelectedBookId(event.state.selectedBookId ?? initialBookId);
+        setSelectedChapter(event.state.selectedChapter ?? initialChapter);
+        return;
+      }
+
+      const readerMatch = window.location.pathname.match(/^\/read\/([^/]+)\/(\d+)$/);
+      if (readerMatch) {
+        setActiveTab("bible");
+        setSelectedBookId(readerMatch[1]);
+        setSelectedChapter(Number(readerMatch[2]));
+        return;
+      }
+
+      setActiveTab("search");
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [initialBookId, initialChapter]);
+
   function selectReaderLocation(bookId, chapter) {
     setSelectedBookId(bookId);
     setSelectedChapter(chapter);
 
-    if (syncReaderUrl) {
-      window.history.replaceState(null, "", `/read/${bookId}/${chapter}`);
+    if (syncReaderUrl || window.location.pathname.startsWith("/read/")) {
+      window.history.replaceState(
+        { activeTab: "bible", selectedBookId: bookId, selectedChapter: chapter },
+        "",
+        `/read/${bookId}/${chapter}`,
+      );
     }
+  }
+
+  function openSearchResult(result) {
+    setSelectedBookId(result.bookId);
+    setSelectedChapter(result.chapter);
+    setActiveTab("bible");
+    window.localStorage.setItem(STORAGE_KEY, "bible");
+    window.history.pushState(
+      { activeTab: "bible", selectedBookId: result.bookId, selectedChapter: result.chapter },
+      "",
+      `/read/${result.bookId}/${result.chapter}`,
+    );
   }
 
   function selectTab(tab) {
     setActiveTab(tab);
     window.localStorage.setItem(STORAGE_KEY, tab);
 
-    if (syncReaderUrl && tab === "search") {
-      window.history.replaceState(null, "", "/");
-    }
+    const nextPath =
+      tab === "search" && (syncReaderUrl || window.location.pathname.startsWith("/read/"))
+        ? "/"
+        : window.location.href;
+    window.history.replaceState(
+      { activeTab: tab, selectedBookId, selectedChapter },
+      "",
+      nextPath,
+    );
   }
 
   const selectedBookMeta = useMemo(
@@ -71,7 +145,21 @@ export default function OseAppShell({
 
         <section className="min-h-0 flex-1 overflow-y-auto px-4 py-5 pb-28">
           {activeTab === "search" ? (
-            <SearchTab query={query} setQuery={setQuery} />
+            <SearchTab
+              error={searchError}
+              history={searchHistory}
+              onOpenResult={openSearchResult}
+              query={query}
+              results={searchResults}
+              searchMeta={searchMeta}
+              setError={setSearchError}
+              setHistory={setSearchHistory}
+              setQuery={setQuery}
+              setResults={setSearchResults}
+              setSearchMeta={setSearchMeta}
+              setStatus={setSearchStatus}
+              status={searchStatus}
+            />
           ) : (
             <BibleTab
               selectedBookId={selectedBookId}
@@ -103,17 +191,94 @@ export default function OseAppShell({
   );
 }
 
-function SearchTab({ query, setQuery }) {
+function SearchTab({
+  error,
+  history,
+  onOpenResult,
+  query,
+  results,
+  searchMeta,
+  setError,
+  setHistory,
+  setQuery,
+  setResults,
+  setSearchMeta,
+  setStatus,
+  status,
+}) {
+  useEffect(() => {
+    refreshHistory();
+  }, []);
+
+  async function refreshHistory() {
+    try {
+      setHistory(await listSearchHistory());
+    } catch {
+      setHistory([]);
+    }
+  }
+
+  async function submitSearch(event) {
+    event.preventDefault();
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.length < 2 || status === "loading") {
+      return;
+    }
+
+    setStatus("loading");
+    setError("");
+
+    try {
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: trimmedQuery }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Search failed.");
+      }
+
+      setResults(payload.results ?? []);
+      setSearchMeta({
+        sources: payload.sources,
+        onlineSearchAvailable: payload.onlineSearchAvailable,
+      });
+      setStatus("ready");
+      void persistSearchHistory(trimmedQuery);
+    } catch (searchError) {
+      setResults([]);
+      setSearchMeta(null);
+      setError(searchError.message);
+      setStatus("error");
+    }
+  }
+
+  async function persistSearchHistory(trimmedQuery) {
+    try {
+      await saveSearchHistory(trimmedQuery);
+      await refreshHistory();
+    } catch {
+      // History is local-only convenience state; search results should not depend on IndexedDB.
+    }
+  }
+
+  async function clearHistory() {
+    await clearSearchHistory();
+    setHistory([]);
+  }
+
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-lg font-semibold">Search Scripture</h2>
         <p className="mt-1 text-sm text-zinc-600">
-          AI search is planned for Part 2. Part 1 is focused on the offline reader.
+          Find Tanakh references from direct citations, remembered wording, or paraphrases.
         </p>
       </div>
 
-      <form className="space-y-3">
+      <form className="space-y-3" onSubmit={submitSearch}>
         <label className="block text-sm font-medium" htmlFor="scripture-search">
           Natural language search
         </label>
@@ -126,21 +291,138 @@ function SearchTab({ query, setQuery }) {
         />
         <button
           className="inline-flex min-h-11 items-center justify-center rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
-          disabled
-          type="button"
+          disabled={query.trim().length < 2 || status === "loading"}
+          type="submit"
         >
-          Search
+          {status === "loading" ? "Searching..." : "Search"}
         </button>
       </form>
 
-      <section className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 py-5">
-        <h3 className="text-sm font-semibold">Next vertical slice</h3>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">
-          Future search will find Scripture references online, validate them, and
-          open the matching reader location.
+      {searchMeta ? (
+        <p className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
+          Results quote only the verified local OSHB + JPS collection.
+          {searchMeta.onlineSearchAvailable ? " Online AI discovery is available." : " Add OPENAI_API_KEY to enable online AI discovery."}
         </p>
-      </section>
+      ) : null}
+
+      {error ? (
+        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      ) : null}
+
+      {results.length > 0 ? (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Results</h3>
+          {results.map((result) => (
+            <SearchResultCard
+              key={`${result.bookId}-${result.chapter}-${result.verseStart}-${result.verseEnd}`}
+              result={result}
+              onOpen={() => onOpenResult(result)}
+            />
+          ))}
+        </section>
+      ) : status === "ready" ? (
+        <p className="rounded-lg border border-zinc-200 bg-white px-3 py-4 text-sm text-zinc-600">
+          No verified local references found.
+        </p>
+      ) : null}
+
+      {history.length > 0 ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold">Recent searches</h3>
+            <button
+              className="text-sm font-medium text-teal-700"
+              onClick={clearHistory}
+              type="button"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {history.map((entry) => (
+              <button
+                className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700"
+                key={entry.id}
+                onClick={() => setQuery(entry.query)}
+                type="button"
+              >
+                {entry.query}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
+  );
+}
+
+function SearchResultCard({ result, onOpen }) {
+  const [preview, setPreview] = useState([]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadPreview() {
+      try {
+        const chapter = await getStaticChapterPayload(result.bookId, result.chapter);
+        if (!isActive) {
+          return;
+        }
+
+        setPreview(
+          chapter?.verses.filter(
+            (verse) => verse.verseNumber >= result.verseStart && verse.verseNumber <= result.verseEnd,
+          ) ?? [],
+        );
+      } catch {
+        if (isActive) {
+          setPreview([]);
+        }
+      }
+    }
+
+    loadPreview();
+
+    return () => {
+      isActive = false;
+    };
+  }, [result]);
+
+  return (
+    <article className="rounded-lg border border-zinc-200 bg-white px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 className="font-semibold">{result.reference}</h4>
+          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">
+            {result.source} · {Math.round(result.confidence * 100)}%
+          </p>
+        </div>
+        <button
+          className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white"
+          onClick={onOpen}
+          type="button"
+        >
+          Open
+        </button>
+      </div>
+
+      {preview.length > 0 ? (
+        <div className="mt-3 space-y-3">
+          {preview.map((verse) => (
+            <div className="space-y-1" key={verse.reference}>
+              <p className="text-right text-xl leading-8" dir="rtl" lang="he">
+                {verse.hebrewText}
+              </p>
+              <p className="text-sm leading-6 text-zinc-600">{verse.englishText}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-zinc-600">Loading verified local text...</p>
+      )}
+    </article>
   );
 }
 

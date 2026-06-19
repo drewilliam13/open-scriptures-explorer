@@ -12,6 +12,21 @@ test("opens the mobile shell and switches tabs", async ({ page }) => {
   await page.getByRole("button", { name: "Search" }).click();
   await expect(page.getByRole("heading", { name: "Search Scripture" })).toBeVisible();
 
+  await page.getByLabel("Natural language search").fill("eagles wings");
+  await page.locator("form").getByRole("button", { name: "Search" }).click();
+  await expect(page.getByRole("heading", { name: "Results" })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("Exodus 19:4", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Open" }).first().click();
+  await expect(page.getByRole("heading", { name: "Bible Reader" })).toBeVisible();
+  await expect(page.getByLabel("Tanakh book")).toHaveValue("exo");
+  await expect(page.getByLabel("Chapter")).toHaveValue("19");
+
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "Search Scripture" })).toBeVisible();
+  await expect(page.getByText("Exodus 19:4", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Open" }).first().click();
+  await expect(page.getByRole("heading", { name: "Bible Reader" })).toBeVisible();
+
   await page.getByRole("button", { name: "Bible" }).click();
 
   await page.getByLabel("Tanakh book").selectOption("exo");
@@ -30,6 +45,22 @@ test("opens the mobile shell and switches tabs", async ({ page }) => {
 
   await expect(page.getByText("Malachi 3:24", { exact: true })).toBeVisible();
   await expect(page.getByText("And he shall turn the heart of the fathers to the children")).toBeVisible();
+});
+
+test("resets reader URLs when returning to search", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByLabel("Natural language search").fill("eagles wings");
+  await page.locator("form").getByRole("button", { name: "Search" }).click();
+  await expect(page.getByText("Exodus 19:4", { exact: true })).toBeVisible({ timeout: 15000 });
+
+  await page.getByRole("button", { name: "Open" }).first().click();
+  await expect(page).toHaveURL(/\/read\/exo\/19$/);
+
+  await page.getByRole("button", { name: "Search" }).click();
+  await expect(page.getByRole("heading", { name: "Search Scripture" })).toBeVisible();
+  await expect(page).toHaveURL("/");
 });
 
 test("opens a direct reader route", async ({ page }) => {
