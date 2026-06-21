@@ -158,7 +158,7 @@ export function searchLocalText(query) {
 export function shouldUseAiDiscovery(localResults) {
   const bestLocalConfidence = localResults[0]?.confidence ?? 0;
 
-  // A strong local hit is already backed by verified text, so avoid making users wait on online AI.
+  // A strong local hit is already backed by verified text, so avoid making users wait on AI.
   return localResults.length === 0 || bestLocalConfidence < MIN_LOCAL_CONFIDENCE_TO_SKIP_AI;
 }
 

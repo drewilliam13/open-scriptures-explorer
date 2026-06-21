@@ -301,7 +301,7 @@ function SearchTab({
       {searchMeta ? (
         <p className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
           Results quote only the verified local OSHB + JPS collection.
-          {searchMeta.onlineSearchAvailable ? " Online AI discovery is available." : " Add OPENAI_API_KEY to enable online AI discovery."}
+          {searchMeta.onlineSearchAvailable ? " AI reference discovery is available." : " Add OPENAI_API_KEY to enable AI reference discovery."}
         </p>
       ) : null}
 
