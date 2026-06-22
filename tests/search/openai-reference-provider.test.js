@@ -71,6 +71,33 @@ describe("OpenAI reference provider", () => {
     ]);
   });
 
+  it("throws sanitized provider errors for failed OpenAI responses", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            error: {
+              message: "You exceeded your current quota.",
+              type: "insufficient_quota",
+              code: "insufficient_quota",
+            },
+          },
+          { status: 429 },
+        ),
+      ),
+    );
+
+    await expect(discoverOpenAiReferences("weak query")).rejects.toMatchObject({
+      name: "OpenAiReferenceProviderError",
+      status: 429,
+      code: "insufficient_quota",
+      type: "insufficient_quota",
+      message: "You exceeded your current quota.",
+    });
+  });
+
   it("aborts optional AI discovery after the configured timeout", async () => {
     vi.useFakeTimers();
     vi.stubEnv("OPENAI_API_KEY", "test-key");

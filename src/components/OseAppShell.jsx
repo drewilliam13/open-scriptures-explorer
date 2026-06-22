@@ -242,6 +242,7 @@ function SearchTab({
 
       setResults(payload.results ?? []);
       setSearchMeta({
+        debug: payload.debug,
         sources: payload.sources,
         onlineSearchAvailable: payload.onlineSearchAvailable,
       });
@@ -299,10 +300,17 @@ function SearchTab({
       </form>
 
       {searchMeta ? (
-        <p className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
-          Results quote only the verified local OSHB + JPS collection.
-          {searchMeta.onlineSearchAvailable ? " AI reference discovery is available." : " Add OPENAI_API_KEY to enable AI reference discovery."}
-        </p>
+        <div className="space-y-2">
+          <p className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
+            Results quote only the verified local OSHB + JPS collection.
+            {searchMeta.onlineSearchAvailable ? " AI reference discovery is available." : " Add OPENAI_API_KEY to enable AI reference discovery."}
+          </p>
+          {searchMeta.debug?.ai?.error ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              AI debug: {formatAiDebugError(searchMeta.debug.ai.error)}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {error ? (
@@ -356,6 +364,11 @@ function SearchTab({
       ) : null}
     </div>
   );
+}
+
+function formatAiDebugError(error) {
+  const details = [error.status ? `HTTP ${error.status}` : null, error.code, error.type].filter(Boolean);
+  return details.length > 0 ? `${details.join(" / ")} - ${error.message}` : error.message;
 }
 
 function SearchResultCard({ result, onOpen }) {

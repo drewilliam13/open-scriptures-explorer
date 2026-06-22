@@ -22,6 +22,16 @@ const AI_REFERENCE_SCHEMA = {
   additionalProperties: false,
 };
 
+export class OpenAiReferenceProviderError extends Error {
+  constructor(message, { status = null, code = null, type = null } = {}) {
+    super(message);
+    this.name = "OpenAiReferenceProviderError";
+    this.status = status;
+    this.code = code;
+    this.type = type;
+  }
+}
+
 export function hasOpenAiReferenceProvider() {
   const provider = process.env.DEFAULT_AI_PROVIDER || "openai";
   return provider === "openai" && Boolean(process.env.OPENAI_API_KEY);
@@ -88,7 +98,7 @@ export async function discoverOpenAiReferences(query) {
     });
 
     if (!response.ok) {
-      return [];
+      throw await createOpenAiResponseError(response);
     }
 
     const payload = await response.json();
@@ -98,6 +108,21 @@ export async function discoverOpenAiReferences(query) {
     return parsed.results ?? [];
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function createOpenAiResponseError(response) {
+  const fallbackMessage = `OpenAI reference discovery failed with HTTP ${response.status}.`;
+
+  try {
+    const payload = await response.json();
+    return new OpenAiReferenceProviderError(payload.error?.message ?? fallbackMessage, {
+      status: response.status,
+      code: payload.error?.code ?? null,
+      type: payload.error?.type ?? null,
+    });
+  } catch {
+    return new OpenAiReferenceProviderError(fallbackMessage, { status: response.status });
   }
 }
 

@@ -86,14 +86,17 @@ export async function searchScripture(query, options = {}) {
 
   const localResults = searchLocalText(normalizedQuery);
   const shouldUseAi = shouldUseAiDiscovery(localResults);
-  const aiResults = shouldUseAi ? await discoverAiReferences(normalizedQuery, options) : [];
+  const aiDiscovery = shouldUseAi && !options.disableAi
+    ? await discoverAiReferences(normalizedQuery)
+    : { results: [], error: null };
+  const aiResults = aiDiscovery.results;
 
   const results = filterRankedResults(mergeResults([...localResults, ...aiResults])).slice(
     0,
     MAX_RESULTS,
   );
 
-  return {
+  const payload = {
     results,
     sources: {
       direct: directResults.length > 0,
@@ -102,6 +105,16 @@ export async function searchScripture(query, options = {}) {
     },
     onlineSearchAvailable: hasOpenAiReferenceProvider(),
   };
+
+  if (shouldIncludeSearchDebug(options) && aiDiscovery.error) {
+    payload.debug = {
+      ai: {
+        error: serializeAiDiscoveryError(aiDiscovery.error),
+      },
+    };
+  }
+
+  return payload;
 }
 
 export function getDirectReferenceResults(query) {
@@ -243,14 +256,14 @@ export function mergeResults(results) {
   });
 }
 
-async function discoverAiReferences(query, options = {}) {
-  if (!hasOpenAiReferenceProvider() || options.disableAi) {
-    return [];
+async function discoverAiReferences(query) {
+  if (!hasOpenAiReferenceProvider()) {
+    return { results: [], error: null };
   }
 
   try {
     // AI is allowed to propose references only; validation below is the trust boundary.
-    return (await discoverOpenAiReferences(query))
+    const results = (await discoverOpenAiReferences(query))
       .map((result) =>
         validateReferenceResult({
           reference: result.reference,
@@ -260,9 +273,34 @@ async function discoverAiReferences(query, options = {}) {
         }),
       )
       .filter(Boolean);
-  } catch {
-    return [];
+
+    return { results, error: null };
+  } catch (error) {
+    return { results: [], error };
   }
+}
+
+function shouldIncludeSearchDebug(options) {
+  return options.debug || process.env.SEARCH_DEBUG === "true" || process.env.NODE_ENV !== "production";
+}
+
+function serializeAiDiscoveryError(error) {
+  if (error?.name === "AbortError") {
+    return {
+      provider: "openai",
+      name: "AbortError",
+      message: "OpenAI reference discovery timed out.",
+    };
+  }
+
+  return {
+    provider: "openai",
+    name: error?.name ?? "Error",
+    status: error?.status ?? null,
+    code: error?.code ?? null,
+    type: error?.type ?? null,
+    message: error?.message ?? "OpenAI reference discovery failed.",
+  };
 }
 
 function getSearchIndex() {

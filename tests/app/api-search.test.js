@@ -117,6 +117,76 @@ describe("/api/search", () => {
     expect(payload.results.every((result) => result.reference !== "John 3:16")).toBe(true);
   });
 
+  it("returns sanitized AI debug errors while preserving local fallback results", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            error: {
+              message: "You exceeded your current quota.",
+              type: "insufficient_quota",
+              code: "insufficient_quota",
+            },
+          },
+          { status: 429 },
+        ),
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/search", {
+        method: "POST",
+        body: JSON.stringify({ query: "his steadfast love endures forever" }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.sources).toMatchObject({ local: true, ai: false });
+    expect(payload.debug.ai.error).toEqual({
+      provider: "openai",
+      name: "OpenAiReferenceProviderError",
+      status: 429,
+      code: "insufficient_quota",
+      type: "insufficient_quota",
+      message: "You exceeded your current quota.",
+    });
+    expect(JSON.stringify(payload.debug)).not.toContain("test-key");
+  });
+
+  it("omits AI debug errors in production unless search debugging is enabled", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          {
+            error: {
+              message: "You exceeded your current quota.",
+              type: "insufficient_quota",
+              code: "insufficient_quota",
+            },
+          },
+          { status: 429 },
+        ),
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/search", {
+        method: "POST",
+        body: JSON.stringify({ query: "his steadfast love endures forever" }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).not.toHaveProperty("debug");
+  });
+
   it("rejects invalid requests", async () => {
     const response = await POST(
       new Request("http://localhost/api/search", {
