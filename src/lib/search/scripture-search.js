@@ -13,6 +13,8 @@ const MIN_RESULT_CONFIDENCE = 0.55;
 const MIN_DEBUG_RESULT_CONFIDENCE = 0.24;
 const MIN_STRONG_RESULT_CONFIDENCE = 0.75;
 const MIN_CONFIDENCE_NEAR_STRONG_RESULT = 0.2;
+const MIN_AI_ALIGNMENT_SCORE = 0.36;
+const MIN_AI_ALIGNMENT_IMPROVEMENT = 0.18;
 const STOP_WORDS = new Set([
   "a",
   "an",
@@ -265,12 +267,7 @@ async function discoverAiReferences(query) {
     // AI is allowed to propose references only; validation below is the trust boundary.
     const results = (await discoverOpenAiReferences(query))
       .map((result) =>
-        validateReferenceResult({
-          reference: result.reference,
-          confidence: Math.min(result.confidence, 0.86),
-          source: "ai",
-          reason: "AI-proposed reference validated against local scripture data",
-        }),
+        validateAndAlignAiReferenceResult(result, query),
       )
       .filter(Boolean);
 
@@ -278,6 +275,72 @@ async function discoverAiReferences(query) {
   } catch (error) {
     return { results: [], error };
   }
+}
+
+function validateAndAlignAiReferenceResult(result, query) {
+  const validated = validateReferenceResult({
+    reference: result.reference,
+    confidence: Math.min(result.confidence, 0.86),
+    source: "ai",
+    reason: "AI-proposed reference validated against local scripture data",
+  });
+
+  if (!validated || validated.verseStart !== validated.verseEnd) {
+    return validated;
+  }
+
+  return alignAiSingleVerseResult(validated, query);
+}
+
+function alignAiSingleVerseResult(result, query) {
+  const normalizedQuery = normalizeSearchText(query);
+  const queryTokenGroups = tokenize(query).map((token) => [token, ...(TOKEN_SYNONYMS.get(token) ?? [])]);
+  if (!normalizedQuery || queryTokenGroups.length === 0) {
+    return result;
+  }
+
+  const candidates = getAdjacentVerseEntries(result)
+    .map((entry) => ({
+      entry,
+      score: scoreVerse(entry, normalizedQuery, queryTokenGroups),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const proposed = candidates.find((candidate) => candidate.entry.verse === result.verseStart);
+  const best = candidates[0];
+  if (
+    !best ||
+    best.entry === proposed?.entry ||
+    best.score < MIN_AI_ALIGNMENT_SCORE ||
+    best.score < (proposed?.score ?? 0) + MIN_AI_ALIGNMENT_IMPROVEMENT
+  ) {
+    return result;
+  }
+
+  return validateReferenceResult({
+    reference: best.entry.reference,
+    confidence: result.confidence,
+    source: "ai",
+    reason: "AI-proposed reference aligned against local scripture data",
+  });
+}
+
+function getAdjacentVerseEntries(result) {
+  const entries = getSearchIndex().entries;
+  const proposedIndex = entries.findIndex(
+    (entry) =>
+      entry.bookId === result.bookId &&
+      entry.chapter === result.chapter &&
+      entry.verse === result.verseStart,
+  );
+
+  if (proposedIndex < 0) {
+    return [];
+  }
+
+  return entries
+    .slice(Math.max(0, proposedIndex - 1), proposedIndex + 2)
+    .filter((entry) => entry.bookId === result.bookId && entry.chapter === result.chapter);
 }
 
 function shouldIncludeSearchDebug(options) {

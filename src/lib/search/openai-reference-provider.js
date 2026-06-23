@@ -68,6 +68,7 @@ export async function discoverOpenAiReferences(query) {
                   "Treat the user's words as possibly coming from any common English translation, including KJV, NKJV, ESV, NIV, NASB, JPS, or paraphrased memory.",
                   "Set confidence based on your trained recognition of how strongly the user query identifies this reference, including remembered wording from common translations, paraphrases, and exact references.",
                   "Do not lower confidence merely because the matching translation text is not available locally.",
+                  "When common English verse numbering differs from OSHB/Masoretic numbering, return the OSHB/Masoretic reference. Pay special attention to Psalms superscription offsets.",
                   "When the query looks like a partial quotation, prioritize exact or near-exact cross-translation quotation matches over topical similarity.",
                   "For example, wording like 'to the law and to the testimony if they speak not according to this word' should resolve to Isaiah 8:20.",
                   "Return only high-confidence candidate references; omit topical guesses.",

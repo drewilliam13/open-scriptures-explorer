@@ -117,6 +117,48 @@ describe("/api/search", () => {
     expect(payload.results.every((result) => result.reference !== "John 3:16")).toBe(true);
   });
 
+  it("aligns AI verse-numbering candidates against adjacent local verses", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          output_text: JSON.stringify({
+            results: [
+              {
+                reference: "Psalms 30:5",
+                confidence: 0.97,
+                reason: "Common English numbering for the remembered wording",
+              },
+            ],
+          }),
+        }),
+      ),
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/search", {
+        method: "POST",
+        body: JSON.stringify({
+          query: "his anger is for but a moment but his favor lasts a lifetime",
+        }),
+      }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.sources.ai).toBe(true);
+    expect(payload.results[0]).toMatchObject({
+      reference: "Psalms 30:6",
+      source: "ai",
+      confidence: 0.86,
+      reason: "AI-proposed reference validated against local scripture data",
+    });
+    expect(payload.results.every((result) => result.reference !== "Psalms 30:5")).toBe(true);
+    expect(payload.results.every((result) => !("englishText" in result))).toBe(true);
+    expect(payload.results.every((result) => !("hebrewText" in result))).toBe(true);
+  });
+
   it("returns sanitized AI debug errors while preserving local fallback results", async () => {
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     vi.stubGlobal(

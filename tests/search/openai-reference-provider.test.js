@@ -30,6 +30,8 @@ describe("OpenAI reference provider", () => {
     expect(body).not.toHaveProperty("tools");
     expect(serializedBody).not.toContain("web_search");
     expect(systemPrompt).not.toContain("Use web search");
+    expect(systemPrompt).toContain("OSHB/Masoretic reference");
+    expect(systemPrompt).toContain("Psalms superscription offsets");
     expect(body.store).toBe(false);
     expect(body.text.format.type).toBe("json_schema");
   });
